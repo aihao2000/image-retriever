@@ -1,4 +1,5 @@
 from genericpath import isfile
+from lib2to3.fixes.fix_tuple_params import simplify_args
 from numpy import imag
 import transformers
 import torch
@@ -6,6 +7,7 @@ from PIL import Image
 import os
 import glob
 from tqdm import tqdm
+import numpy as np
 
 
 class CLIPRetrieval:
@@ -80,8 +82,25 @@ class CLIPRetrieval:
         image_features = self.image_features[index]
         # similarity = 100 * (image_features @ self.image_features.T).softmax(dim=-1)
         similarity = 100 * (image_features @ self.image_features.T)
-        vuales, indices = similarity.topk(num)
-        return vuales, [self.image_paths[i] for i in indices]
+        values, indices = similarity.topk(num)
+        return values, [self.image_paths[i] for i in indices]
+
+    def get_most_similar_images(self, num: int = 10, threshold=80):
+        similarity = 100 * (self.image_features @ self.image_features.T)
+        values, indices = similarity.topk(num)
+        result = []
+        for i in range(0, len(self.image_paths)):
+            image1_path = self.image_paths[i]
+            for j in range(0, num):
+                image2_path = self.image_paths[indices[i][j]]
+                if (
+                    image1_path != image2_path
+                    and float(values[i][j]) >= threshold
+                    and not np.isclose(float(values[i][j]), 100)
+                ):
+                    result.append((image1_path, image2_path, float(values[i][j])))
+
+        return result
 
     def add_images_by_directory_path(self, dir_path):
         file_paths = glob.glob(dir_path, recursive=True)
