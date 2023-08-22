@@ -1,5 +1,6 @@
 from genericpath import isfile
 from lib2to3.fixes.fix_tuple_params import simplify_args
+from cv2 import THRESH_OTSU
 from numpy import imag
 import transformers
 import torch
@@ -85,20 +86,29 @@ class CLIPRetrieval:
         values, indices = similarity.topk(num)
         return values, [self.image_paths[i] for i in indices]
 
-    def get_most_similar_images(self, num: int = 10, threshold=80):
+    def get_most_similar_images(self, topk: int = None, threshold=0):
         similarity = 100 * (self.image_features @ self.image_features.T)
-        values, indices = similarity.topk(num)
         result = []
-        for i in range(0, len(self.image_paths)):
-            image1_path = self.image_paths[i]
-            for j in range(0, num):
-                image2_path = self.image_paths[indices[i][j]]
-                if (
-                    image1_path != image2_path
-                    and float(values[i][j]) >= threshold
-                    and not np.isclose(float(values[i][j]), 100)
-                ):
-                    result.append((image1_path, image2_path, float(values[i][j])))
+        if topk is not None:
+            values, indices = similarity.topk(topk)
+
+            for i in range(0, len(self.image_paths)):
+                image1_path = self.image_paths[i]
+                for j in range(0, topk):
+                    image2_path = self.image_paths[indices[i][j]]
+                    if (
+                        image1_path != image2_path
+                        and float(values[i][j]) >= threshold
+                        and not np.isclose(float(values[i][j]), 100)
+                    ):
+                        result.append((image1_path, image2_path, float(values[i][j])))
+        else:
+            for i in range(0, len(self.image_paths)):
+                image1_path = self.image_paths[i]
+                for j in range(0, len(self.image_paths)):
+                    image2_path = self.image_paths[j]
+                    if image1_path != image2_path and similarity[i][j] >= threshold:
+                        result.append((image1_path, image2_path, similarity[i][j]))
 
         return result
 
