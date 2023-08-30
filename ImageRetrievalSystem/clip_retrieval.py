@@ -20,7 +20,7 @@ class CLIPRetrieval:
             self.clip_vision_model = (
                 transformers.CLIPVisionModelWithProjection.from_pretrained(
                     pretrained_model_name_or_path
-                ).to("cuda:0")
+                ).to("cuda")
             )
             self.clip_vision_model.eval()
             self.clip_vision_model.requires_grad_(False)
@@ -42,7 +42,7 @@ class CLIPRetrieval:
         with open(os.path.join(path, "image_paths.txt"), "r") as image_paths_file:
             self.image_paths = image_paths_file.readlines()
             self.image_paths = [path.rstrip() for path in self.image_paths]
-        self.image_features = torch.load(path + "/image_features.pt").to("cuda:1")
+        self.image_features = torch.load(path + "/image_features.pt").to("cuda")
         assert len(self.image_paths) == self.image_features.shape[0]
         print(
             "load successfully:"
@@ -64,17 +64,17 @@ class CLIPRetrieval:
 
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
-        ).pixel_values.to("cuda:0")
+        ).pixel_values.to("cuda")
         image_features = self.clip_vision_model(
             pixel_values, output_attentions=False, output_hidden_states=False
-        ).image_embeds.to("cuda:1")
+        ).image_embeds.to("cuda")
         image_features /= image_features.norm(dim=-1, keepdim=True)
         if self.image_features is None:
             self.image_features = image_features
         else:
             self.image_features = torch.concat(
                 [self.image_features, image_features], dim=0
-            ).to("cuda:1")
+            ).to("cuda")
         del pixel_values
         del image_features
 
@@ -103,21 +103,21 @@ class CLIPRetrieval:
                     ):
                         result.append((image1_path, image2_path, float(values[i][j])))
         else:
-            for i in range(0, len(self.image_paths)):
-                image1_path = self.image_paths[i]
-                for j in range(0, len(self.image_paths)):
-                    image2_path = self.image_paths[j]
-                    if image1_path != image2_path and similarity[i][j] >= threshold:
-                        result.append((image1_path, image2_path, similarity[i][j]))
+            for x, y in torch.nonzero(similarity >= threshold):
+                if x == y:
+                    continue
+                result.append(
+                    (self.image_paths[x], self.image_paths[y], similarity[x][y])
+                )
 
         return result
 
     def add_images_by_directory_path(self, dir_path):
-        file_paths = glob.glob(dir_path, recursive=True)
-        print(file_paths)
-        for path in tqdm(file_paths):
-            if os.path.isfile(path):
-                self.add_image(path)
+        image_paths = glob.glob(dir_path + "/**", recursive=True)
+        print(image_paths)
+        for image_path in tqdm(image_paths):
+            if os.path.isfile(image_path):
+                self.add_image(image_path)
 
     def remove_image_feature(self, path):
         if path not in self.image_paths:
