@@ -130,7 +130,9 @@ class CLIPRetrieval:
         self.image_features = torch.concat(
             [self.image_features[:index], self.image_features[index + 1 :]], dim=0
         )
+
     def autoremove(self):
         for image_path in self.image_paths:
-            if os.path.exists(image_path):
+            if not os.path.exists(image_path):
+                print(image_path + "will be remove")
                 self.remove_image_feature(image_path)
