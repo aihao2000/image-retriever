@@ -43,9 +43,7 @@ class CLIPRetrieval:
         with open(os.path.join(path, "image_paths.txt"), "r") as image_paths_file:
             self.image_paths = image_paths_file.readlines()
             self.image_paths = [path.rstrip() for path in self.image_paths]
-        self.image_features = torch.load(path + "/image_features.pt").to(
-            "cuda", dtype=self.dtype
-        )
+        self.image_features = torch.load(path + "/image_features.pt")
         assert len(self.image_paths) == self.image_features.shape[0]
         print(
             "load successfully:"
@@ -71,12 +69,13 @@ class CLIPRetrieval:
             pixel_values, output_attentions=False, output_hidden_states=False
         ).image_embeds.to("cuda", dtype=self.dtype)
         image_features /= image_features.norm(dim=-1, keepdim=True)
+        image_features = image_features.to("cpu", dtype=self.dtype)
         if self.image_features is None:
             self.image_features = image_features
         else:
             self.image_features = torch.concat(
                 [self.image_features, image_features], dim=0
-            ).to("cuda", dtype=self.dtype)
+            )
         del pixel_values
         del image_features
 
@@ -84,12 +83,18 @@ class CLIPRetrieval:
         index = self.image_paths.index(image_path)
         image_features = self.image_features[index]
         # similarity = 100 * (image_features @ self.image_features.T).softmax(dim=-1)
-        similarity = 100 * (image_features @ self.image_features.T)
+        similarity = 100 * (
+            image_features.to("cuda", dtype=self.dtype)
+            @ self.image_features.T.to("cuda", dtype=self.dtype)
+        )
         values, indices = similarity.topk(num)
         return values, [self.image_paths[i] for i in indices]
 
     def get_most_similar_images(self, topk: int = None, threshold=0):
-        similarity = 100 * (self.image_features @ self.image_features.T)
+        similarity = 100 * (
+            self.image_features.to("cuda", dtype=self.dtype)
+            @ self.image_features.T.to("cuda", dtype=self.dtype)
+        )
         result = []
         if topk is not None:
             values, indices = similarity.topk(topk)
