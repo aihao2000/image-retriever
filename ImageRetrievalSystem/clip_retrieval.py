@@ -43,7 +43,7 @@ class CLIPRetrieval:
         with open(os.path.join(path, "image_paths.txt"), "r") as image_paths_file:
             self.image_paths = image_paths_file.readlines()
             self.image_paths = [path.rstrip() for path in self.image_paths]
-        self.image_features = torch.load(path + "/image_features.pt")
+        self.image_features = torch.load(path + "/image_features.pt").to("cpu")
         assert len(self.image_paths) == self.image_features.shape[0]
         print(
             "load successfully:"
@@ -120,7 +120,14 @@ class CLIPRetrieval:
         return result
 
     def add_images_by_directory_path(self, dir_path):
-        image_paths = glob.glob(dir_path + "/**", recursive=True)
+        image_paths = glob.glob(dir_path + "/**/*.png", recursive=True) + glob.glob(
+            dir_path + "/**/*.jpg", recursive=True
+        )
+        image_paths = [
+            image_path
+            for image_path in image_paths
+            if image_path not in self.image_paths
+        ]
         print(image_paths)
         for image_path in tqdm(image_paths):
             if os.path.isfile(image_path):
