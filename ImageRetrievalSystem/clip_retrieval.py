@@ -110,7 +110,9 @@ class CLIPRetrieval:
                     ):
                         result.append((image1_path, image2_path, float(values[i][j])))
         else:
-            for x, y in torch.nonzero(similarity >= threshold):
+            similarity = similarity.to("cpu").numpy()
+            indices = np.where(similarity >= threshold)
+            for x, y in tqdm(zip(list(indices[0]), list(indices[1]))):
                 if x == y:
                     continue
                 result.append(
