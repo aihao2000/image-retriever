@@ -1,9 +1,6 @@
-from genericpath import isfile
-from lib2to3.fixes.fix_tuple_params import simplify_args
-from cv2 import THRESH_OTSU
-from numpy import imag
 import transformers
 import torch
+import math
 from PIL import Image
 import os
 import glob
@@ -90,27 +87,15 @@ class CLIPRetrieval:
         values, indices = similarity.topk(num)
         return values, [self.image_paths[i] for i in indices]
 
-    def get_most_similar_images(self, topk: int = None, threshold=0):
-        similarity = 100 * (
-            self.image_features.to("cuda", dtype=self.dtype)
-            @ self.image_features.T.to("cuda", dtype=self.dtype)
-        )
+    def get_most_similar_images(
+        self, threshold=0, device="cpu", dtype=torch.float32, batch_size=100
+    ):
         result = []
-        if topk is not None:
-            values, indices = similarity.topk(topk)
-
-            for i in range(0, len(self.image_paths)):
-                image1_path = self.image_paths[i]
-                for j in range(0, topk):
-                    image2_path = self.image_paths[indices[i][j]]
-                    if (
-                        image1_path != image2_path
-                        and float(values[i][j]) >= threshold
-                        and not np.isclose(float(values[i][j]), 100)
-                    ):
-                        result.append((image1_path, image2_path, float(values[i][j])))
-        else:
-            similarity = similarity.to("cpu").numpy()
+        if device == "cpu":
+            similarity = 100 * (
+                self.image_features.to(device, dtype=dtype).numpy()
+                @ self.image_features.T.to(device, dtype=dtype).numpy()
+            )
             indices = np.where(similarity >= threshold)
             for x, y in tqdm(zip(list(indices[0]), list(indices[1]))):
                 if x == y:
@@ -118,8 +103,43 @@ class CLIPRetrieval:
                 result.append(
                     (self.image_paths[x], self.image_paths[y], similarity[x][y])
                 )
-
+        else:
+            for i in tqdm(range(len(self.image_features))):
+                similarity = 100 * (
+                    self.image_features[i].to(device, dtype=self.dtype)
+                    @ self.image_features.T.to(device, dtype=self.dtype)
+                )
+                indexs = torch.where(similarity >= threshold)[0].tolist()
+                result.append(
+                    [
+                        (self.image_paths[i], self.image_paths[index])
+                        for index in indexs
+                        if index != i
+                    ]
+                )
         return result
+
+        # n = len(self.image_features)
+        # for i in tqdm(range(0, n, batch_size)):
+        #     similarity = 100 * (
+        #         self.image_features[i * batch_size : min(n, (i + 1) * batch_size)].to(
+        #             device, dtype=self.dtype
+        #         )
+        #         @ self.image_features.T.to(device, dtype=self.dtype)
+        #     )
+        #     similarity = torch.where(similarity >= threshold)
+        #     for row in similarity:
+        #         indexs = similarity[row].tolist()
+        #         result.append(
+        #             [
+        #                 (
+        #                     self.image_paths[i * batch_size + row],
+        #                     self.image_paths[index],
+        #                 )
+        #                 for index in indexs
+        #                 if index != i * batch_size + row
+        #             ]
+        #         )
 
     def add_images_by_directory_path(self, dir_path):
         image_paths = glob.glob(dir_path + "/**/*.png", recursive=True) + glob.glob(
