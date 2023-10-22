@@ -35,10 +35,10 @@ pip install git+https://github.com/openai/CLIP.git
 
 
 
-使用pip直接安装的方法暂未测试
+使用pip直接安装
 
 ```shell
-pip install git+https://github.com/AisingioroHao0/ImageRetrieval.git
+pip install git+https://github.com/aihao2000/image-retriever
 ```
 
 ## 用法

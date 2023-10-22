@@ -12,10 +12,6 @@ class Engine:
     def __init__(self):
         self.image_paths = []
         self.image_features = None
-        self.init_storage()
-        self.init_cache()
-
-    # base function
 
     def load_model(
         self,
@@ -36,7 +32,7 @@ class Engine:
         self.clip_text_model = transformers.CLIPTextModelWithProjection.from_pretrained(
             pretrained_model_name_or_path
         ).to(device, dtype)
-        self.clip.tokenizer = transformers.CLIPTokenizer.from_pretrained(
+        self.clip_tokenizer = transformers.CLIPTokenizer.from_pretrained(
             pretrained_model_name_or_path
         )
         self.clip_text_model.requires_grad_(False)
@@ -118,11 +114,11 @@ class Engine:
             for image_path in image_paths
             if image_path not in self.image_paths
         ]
+        image_paths=[image_path for image_path in image_paths if os.path.isfile(image_path)]
         print(image_paths)
         for image_path in tqdm(image_paths):
-            if os.path.isfile(image_path):
-                self.add_image(image_path)
-
+            self.add_image(image_path)
+        return len(image_paths)
     def add_image(self, image_path):
         if image_path in self.image_paths:
             return
@@ -134,10 +130,10 @@ class Engine:
 
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
-        ).pixel_values.to("cuda", dtype=self.dtype)
+        ).pixel_values.to(self.device, dtype=self.dtype)
         image_features = self.clip_vision_model(
             pixel_values, output_attentions=False, output_hidden_states=False
-        ).image_embeds.to("cuda", dtype=self.dtype)
+        ).image_embeds.to(self.device, dtype=self.dtype)
         image_features /= image_features.norm(dim=-1, keepdim=True)
         image_features = image_features.to("cpu", dtype=self.dtype)
         if self.image_features is None:
@@ -164,10 +160,8 @@ class Engine:
             if not os.path.exists(image_path):
                 print(image_path + "will be remove")
                 self.remove_image_feature(image_path)
-
-    # 持久化存储
-    def init_storage(self):
-        None
+    def __len__(self):
+        return len(self.image_paths)
 
     def save_cache(self, path="."):
         with open(os.path.join(path, "image_paths.txt"), "w") as image_paths_file:
@@ -196,47 +190,41 @@ class Engine:
 
     """
         检索
-        返回PIL Image list
     """
-
-    def init_cache(self):
-        None
-
-    def search_image_by_text(self, text, num=1):
-        self._search_image_by_text(text, num)
-
-    def _search_image_by_text(self, text, num=1):
+    @torch.no_grad()
+    def search_image_by_text(self, text, num=1,return_type="path"):
         input_ids = self.clip_tokenizer(
             [text],
             padding="longest",
             truncation=True,
             return_tensors="pt",
-        ).input_ids
-        text_embds = self.clip_text_model(input_ids, output_hidden_states=False)
-        text_embds /= text_embds.norm(dim=-1, keepdim=True)
+        ).input_ids.to(self.device)
+        text_embds = self.clip_text_model(input_ids, output_hidden_states=False).text_embeds.to(self.device,dtype=self.dtype)
+        text_embds /= text_embds.norm(dim=-1, keepdim=True).to(self.device,dtype=self.dtype)
         similarity = 100 * (
-            text_embds.to(self.device, dtype=self.dtype)
-            @ self.image_features.T.to(self.device, dtype=self.dtype)
+            text_embds.to(self.device,dtype=self.dtype)
+            @ self.image_features.T.to(self.device,dtype=self.dtype)
         )
         values, indices = similarity.topk(num)
-        return values, [self.image_paths[i] for i in indices]
+        if return_type=="path":
+            return values, [self.image_paths[i] for i in indices]
 
-    def search_image_by_image(self, image: Image.Image, num=1):
-        self._search_image_by_image(image, num)
-
-    def _search_image_by_image(self, image: Image.Image, num=1):
+        
+    @torch.no_grad()
+    def search_image_by_image(self, image: Image.Image, num=1,return_type="path"):
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
-        ).pixel_values.to("cuda", dtype=self.dtype)
+        ).pixel_values.to(self.device,dtype=self.dtype)
         image_features = self.clip_vision_model(
             pixel_values, output_attentions=False, output_hidden_states=False
-        ).image_embeds.to("cuda", dtype=self.dtype)
+        ).image_embeds.to(self.device, dtype=self.dtype)
         image_features /= image_features.norm(dim=-1, keepdim=True)
-        image_features = image_features.to("cpu", dtype=self.dtype)
+        image_features = image_features.to(self.device,dtype=self.dtype)
 
         similarity = 100 * (
-            image_features.to("cuda", dtype=self.dtype)
-            @ self.image_features.T.to("cuda", dtype=self.dtype)
+            image_features.to(self.device,dtype=self.dtype)
+            @ self.image_features.T.to(self.device,dtype=self.dtype)
         )
         values, indices = similarity.topk(num)
-        return values, [self.image_paths[i] for i in indices]
+        if return_type=="path":
+            return values, [self.image_paths[i] for i in indices]     
