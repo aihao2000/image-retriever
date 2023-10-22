@@ -1,24 +1,29 @@
-import os
+from setuptools import find_packages, setup
 
-import pkg_resources
-from setuptools import setup, find_packages
 
 setup(
-    name="ImageRetrievalEngine",
-    version="0.1",
-    description="Image Retrieval Engine based on OpenAI CLIP",
-    author="AiHao",
-    author_email='AiHao200000707@outlook.com',
-    packages=find_packages(),
-    install_requires=[
-        "ftfy",
-        "regex",
-        "tqdm",
-        "torch",
-        "torchvision",
-        "CLIP @ git+https://github.com/openai/CLIP.git",
-        "glob",
-        "prettytable"
+    name="image_retriever",
+    version="0.1.0",
+    description="High-performance image storage and retrieval engine package",
+    keywords="clip image storage search retrieval",
+    license="Apache",
+    author="aihao",
+    author_email="aihao2000@outlook.com",
+    url="https://github.com/aihao2000/image-retriever",
+    package_dir={"": "src"},
+    packages=find_packages("src"),
+    python_requires=">=3.8.0",
+    install_requires=["diffusers", "transformers", "numpy","tqdm","torch","datasets","pyarrow"],
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Education",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    url='https://github.com/AisingioroHao0/ImageRetrieval'
 )
