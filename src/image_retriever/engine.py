@@ -125,7 +125,7 @@ class Engine:
     def add_image(self, image_path, image=None):
         if image is None:
             image = Image.open(image_path)
-        self.image_paths.append(image)
+        self.image_paths.append(image_path)
 
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
