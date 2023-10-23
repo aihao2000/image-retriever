@@ -25,16 +25,6 @@
 
 开发时使用conda虚拟环境pytorch2.0.1，可参考并运行以下命令
 
-```shell
-conda create --name "ImageRetrieval"
-conda activate ImageRetrieval
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-pip install ftfy regex tqdm prettytable
-pip install git+https://github.com/openai/CLIP.git
-```
-
-
-
 使用pip直接安装
 
 ```shell
