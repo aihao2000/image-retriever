@@ -114,19 +114,18 @@ class Engine:
             for image_path in image_paths
             if image_path not in self.image_paths
         ]
-        image_paths=[image_path for image_path in image_paths if os.path.isfile(image_path)]
+        image_paths = [
+            image_path for image_path in image_paths if os.path.isfile(image_path)
+        ]
         print(image_paths)
         for image_path in tqdm(image_paths):
             self.add_image(image_path)
         return len(image_paths)
-    def add_image(self, image_path):
-        if image_path in self.image_paths:
-            return
-        try:
+
+    def add_image(self, image_path, image=None):
+        if image is None:
             image = Image.open(image_path)
-        except IOError:
-            return
-        self.image_paths.append(image_path)
+        self.image_paths.append(image)
 
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
@@ -160,6 +159,7 @@ class Engine:
             if not os.path.exists(image_path):
                 print(image_path + "will be remove")
                 self.remove_image_feature(image_path)
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -191,40 +191,50 @@ class Engine:
     """
         检索
     """
+
     @torch.no_grad()
-    def search_image_by_text(self, text, num=1,return_type="path"):
+    def search_image_by_text(self, text, num=1, return_type="path"):
         input_ids = self.clip_tokenizer(
             [text],
             padding="longest",
             truncation=True,
             return_tensors="pt",
         ).input_ids.to(self.device)
-        text_embds = self.clip_text_model(input_ids, output_hidden_states=False).text_embeds.to(self.device,dtype=self.dtype)
-        text_embds /= text_embds.norm(dim=-1, keepdim=True).to(self.device,dtype=self.dtype)
+        text_embds = (
+            self.clip_text_model(input_ids, output_hidden_states=False)
+            .text_embeds[0]
+            .to(self.device, dtype=self.dtype)
+        )
+        text_embds /= text_embds.norm(dim=-1, keepdim=True).to(
+            self.device, dtype=self.dtype
+        )
         similarity = 100 * (
-            text_embds.to(self.device,dtype=self.dtype)
-            @ self.image_features.T.to(self.device,dtype=self.dtype)
+            text_embds.to(self.device, dtype=self.dtype)
+            @ self.image_features.T.to(self.device, dtype=self.dtype)
         )
         values, indices = similarity.topk(num)
-        if return_type=="path":
+        if return_type == "path":
             return values, [self.image_paths[i] for i in indices]
 
-        
     @torch.no_grad()
-    def search_image_by_image(self, image: Image.Image, num=1,return_type="path"):
+    def search_image_by_image(self, image: Image.Image, num=1, return_type="path"):
         pixel_values = self.clip_image_processor(
             image, return_tensors="pt"
-        ).pixel_values.to(self.device,dtype=self.dtype)
-        image_features = self.clip_vision_model(
-            pixel_values, output_attentions=False, output_hidden_states=False
-        ).image_embeds.to(self.device, dtype=self.dtype)
+        ).pixel_values.to(self.device, dtype=self.dtype)
+        image_features = (
+            self.clip_vision_model(
+                pixel_values, output_attentions=False, output_hidden_states=False
+            )
+            .image_embeds[0]
+            .to(self.device, dtype=self.dtype)
+        )
         image_features /= image_features.norm(dim=-1, keepdim=True)
-        image_features = image_features.to(self.device,dtype=self.dtype)
+        image_features = image_features.to(self.device, dtype=self.dtype)
 
         similarity = 100 * (
-            image_features.to(self.device,dtype=self.dtype)
-            @ self.image_features.T.to(self.device,dtype=self.dtype)
+            image_features.to(self.device, dtype=self.dtype)
+            @ self.image_features.T.to(self.device, dtype=self.dtype)
         )
         values, indices = similarity.topk(num)
-        if return_type=="path":
-            return values, [self.image_paths[i] for i in indices]     
+        if return_type == "path":
+            return values, [self.image_paths[i] for i in indices]
